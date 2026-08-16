@@ -91,27 +91,31 @@ export default function DigitalCard() {
   const [tilt, setTilt] = useState({ x: 0, y: 0 });
 
   useEffect(() => {
-    (async () => {
-      try {
-        const res = await window.storage.get("card-data");
-        if (res && res.value) {
-          const parsed = JSON.parse(res.value);
-          // Only trust a plain object shape; ignore anything malformed.
-          if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) {
-            setData(parsed);
-          }
+    try {
+      const raw = localStorage.getItem("card-data");
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        // Only trust a plain object shape; ignore anything malformed.
+        if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) {
+          setData(parsed);
         }
-      } catch (e) {}
-      finally {
-        setLoaded(true);
-        setTimeout(() => setEntered(true), 80);
       }
-    })();
+    } catch (e) {
+      // localStorage can be unavailable (private browsing, etc.) — just
+      // start with an empty card instead of breaking the page.
+    } finally {
+      setLoaded(true);
+      setTimeout(() => setEntered(true), 80);
+    }
   }, []);
 
   useEffect(() => {
     if (!loaded) return;
-    window.storage.set("card-data", JSON.stringify(data)).catch(() => {});
+    try {
+      localStorage.setItem("card-data", JSON.stringify(data));
+    } catch (e) {
+      // Storage full or blocked — fail silently, don't crash the page.
+    }
   }, [data, loaded]);
 
   function set(key, value) {
