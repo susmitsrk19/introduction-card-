@@ -155,6 +155,7 @@ export default function DigitalCard() {
   const [photoError, setPhotoError] = useState("");
   const [sharedView, setSharedView] = useState(false);
   const [shareCopied, setShareCopied] = useState(false);
+  const [shareBusy, setShareBusy] = useState(false);
   const cardRef = useRef(null);
   const fileInputRef = useRef(null);
   const [tilt, setTilt] = useState({ x: 0, y: 0 });
@@ -304,14 +305,33 @@ export default function DigitalCard() {
     }
     const url = `${window.location.origin}${window.location.pathname}#c=${encodeCardData(shareable)}`;
 
+    // Try to shorten the link using a free public shortener so it's easy
+    // to read/share. This sends the link (which encodes the card data) to
+    // that third-party service — if it's unreachable or blocked, we just
+    // fall back to the full link so sharing still works either way.
+    let finalUrl = url;
+    setShareBusy(true);
+    try {
+      const resp = await fetch(
+        `https://tinyurl.com/api-create.php?url=${encodeURIComponent(url)}`
+      );
+      if (resp.ok) {
+        const short = (await resp.text()).trim();
+        if (short.startsWith("http")) finalUrl = short;
+      }
+    } catch (e) {
+      // Shortener unreachable — proceed with the full link below.
+    }
+    setShareBusy(false);
+
     if (navigator.share) {
       // Pass only the url — adding a separate "text" field makes some
       // apps show the link AND a duplicate line of text.
-      navigator.share({ url }).catch(() => {});
+      navigator.share({ url: finalUrl }).catch(() => {});
       return;
     }
     try {
-      navigator.clipboard?.writeText(url);
+      navigator.clipboard?.writeText(finalUrl);
     } catch (e) {
       // Clipboard blocked — the link is still selectable from a prompt below.
     }
@@ -515,6 +535,8 @@ export default function DigitalCard() {
           outline: 2px solid ${GOLD};
           outline-offset: 2px;
         }
+        @keyframes dc-spin-anim { to { transform: rotate(360deg); } }
+        .dc-spin { animation: dc-spin-anim 0.8s linear infinite; }
         @media (prefers-reduced-motion: reduce) {
           .dc-shine, .dc-blob, .dc-avatar::after, .dc-card-wrap { animation: none; }
         }
@@ -766,9 +788,15 @@ export default function DigitalCard() {
               </span>
             )}
             {!sharedView && (
-              <button className="dc-btn primary" style={{ flex: 1 }} onClick={shareCard} disabled={!hasName}>
-                {shareCopied ? <Check size={16} /> : <Sparkles size={16} />}
-                {shareCopied ? "Link copied!" : "Share Card"}
+              <button className="dc-btn primary" style={{ flex: 1 }} onClick={shareCard} disabled={!hasName || shareBusy}>
+                {shareBusy ? (
+                  <Sparkles size={16} className="dc-spin" />
+                ) : shareCopied ? (
+                  <Check size={16} />
+                ) : (
+                  <Sparkles size={16} />
+                )}
+                {shareBusy ? "Shortening…" : shareCopied ? "Link copied!" : "Share Card"}
               </button>
             )}
             <button
@@ -783,8 +811,7 @@ export default function DigitalCard() {
 
           {!sharedView && (
             <div style={{ textAlign: "center", color: MUTED, fontSize: 11.5, marginTop: 14 }}>
-              "Share Card" makes a short link with your details — no account, no server.{" "}
-              {data.photo ? "A small version of your photo is included in the link." : ""}
+              "Share Card" makes a short link with your details — including a small version of your photo, if you added one.
             </div>
           )}
 
