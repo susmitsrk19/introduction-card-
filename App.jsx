@@ -264,10 +264,17 @@ export default function DigitalCard() {
   }
 
   function shareCard() {
-    const url = `${window.location.origin}${window.location.pathname}#c=${encodeCardData(data)}`;
-    const shareText = `${data.name || "My"}'s digital card`;
+    // Keep the photo OUT of the shareable link. A photo turns the link into
+    // several thousand characters, which messaging apps refuse to treat as
+    // a real link — it shows up as a giant wall of text instead, and often
+    // gets truncated so the recipient's page can't decode it at all.
+    const { photo, ...shareable } = data;
+    const url = `${window.location.origin}${window.location.pathname}#c=${encodeCardData(shareable)}`;
+
     if (navigator.share) {
-      navigator.share({ title: shareText, url }).catch(() => {});
+      // Pass only the url — adding a separate "text" field makes some
+      // apps show the link AND a duplicate line of text.
+      navigator.share({ url }).catch(() => {});
       return;
     }
     try {
@@ -616,15 +623,22 @@ export default function DigitalCard() {
               <div className="dc-shine" />
               <div style={{ position: "relative", zIndex: 1 }}>
                 <div style={{ display: "flex", alignItems: "center", gap: 16, marginBottom: 22 }}>
-                  <div className="dc-avatar" onClick={handlePhotoPick} title="Add photo">
+                  <div
+                    className="dc-avatar"
+                    onClick={sharedView ? undefined : handlePhotoPick}
+                    title={sharedView ? undefined : "Add photo"}
+                    style={sharedView ? { cursor: "default" } : undefined}
+                  >
                     {data.photo ? (
                       <img src={data.photo} alt="" />
                     ) : (
                       initials(data.name || "")
                     )}
-                    <div className="dc-avatar-overlay">
-                      <Camera size={18} color={CREAM} />
-                    </div>
+                    {!sharedView && (
+                      <div className="dc-avatar-overlay">
+                        <Camera size={18} color={CREAM} />
+                      </div>
+                    )}
                   </div>
                   <input
                     ref={fileInputRef}
@@ -726,8 +740,8 @@ export default function DigitalCard() {
 
           {!sharedView && (
             <div style={{ textAlign: "center", color: MUTED, fontSize: 11.5, marginTop: 14 }}>
-              "Share Card" makes a link with everything in it — no account, no server.{" "}
-              {data.photo ? "Since it includes your photo, the link is long — that's normal." : ""}
+              "Share Card" makes a short link with your details — no account, no server.{" "}
+              {data.photo ? "Your photo stays on this device and isn't included in the link." : ""}
             </div>
           )}
 
