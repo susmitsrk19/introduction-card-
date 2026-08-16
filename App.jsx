@@ -77,6 +77,33 @@ function decodeCardData(str) {
   return JSON.parse(json);
 }
 
+// Shrinks the person's saved photo down to a tiny thumbnail just for the
+// shareable link, so the recipient sees a face without the link becoming
+// too long for messaging apps to handle as a real, clickable link.
+function makeShareThumbnail(dataUrl, size = 56, quality = 0.5) {
+  return new Promise((resolve) => {
+    if (!dataUrl) return resolve(null);
+    const img = new Image();
+    img.onload = () => {
+      try {
+        const canvas = document.createElement("canvas");
+        canvas.width = size;
+        canvas.height = size;
+        const ctx = canvas.getContext("2d");
+        const scale = Math.max(size / img.width, size / img.height);
+        const w = img.width * scale;
+        const h = img.height * scale;
+        ctx.drawImage(img, (size - w) / 2, (size - h) / 2, w, h);
+        resolve(canvas.toDataURL("image/jpeg", quality));
+      } catch (e) {
+        resolve(null);
+      }
+    };
+    img.onerror = () => resolve(null);
+    img.src = dataUrl;
+  });
+}
+
 // Escape special vCard characters so a crafted value (e.g. containing
 // newlines, semicolons, or backslashes) can't break the exported file
 // or inject extra vCard fields.
@@ -263,12 +290,18 @@ export default function DigitalCard() {
     setTimeout(() => setBurst(false), 900);
   }
 
-  function shareCard() {
-    // Keep the photo OUT of the shareable link. A photo turns the link into
-    // several thousand characters, which messaging apps refuse to treat as
-    // a real link — it shows up as a giant wall of text instead, and often
-    // gets truncated so the recipient's page can't decode it at all.
-    const { photo, ...shareable } = data;
+  async function shareCard() {
+    // Swap the full-resolution photo for a tiny thumbnail just for the
+    // link — a full photo makes the link too long for messaging apps to
+    // treat as a real, clickable link (it turns into an unclickable wall
+    // of text, or gets cut off). The small thumbnail keeps the link short
+    // while still showing the recipient a face.
+    const { photo, ...rest } = data;
+    let shareable = rest;
+    if (photo) {
+      const thumb = await makeShareThumbnail(photo);
+      if (thumb) shareable = { ...rest, photo: thumb };
+    }
     const url = `${window.location.origin}${window.location.pathname}#c=${encodeCardData(shareable)}`;
 
     if (navigator.share) {
@@ -584,20 +617,30 @@ export default function DigitalCard() {
                 <div style={{ fontSize: 12, color: CORAL_ERR, marginTop: 6 }}>{photoError}</div>
               )}
             </div>
-            {FIELDS.map((f) => (
-              <div key={f.key}>
-                <div style={{ fontSize: 11.5, color: MUTED, fontWeight: 600, marginBottom: 5, letterSpacing: "0.03em" }}>
-                  {f.label.toUpperCase()}
+            {FIELDS.map((f) => {
+              const digitCount = String(data[f.key] || "").replace(/[^\d]/g, "").length;
+              const showWaWarning =
+                f.key === "whatsapp" && data.whatsapp && digitCount > 0 && digitCount < 11;
+              return (
+                <div key={f.key}>
+                  <div style={{ fontSize: 11.5, color: MUTED, fontWeight: 600, marginBottom: 5, letterSpacing: "0.03em" }}>
+                    {f.label.toUpperCase()}
+                  </div>
+                  <input
+                    className="dc-input"
+                    placeholder={f.placeholder}
+                    value={data[f.key] || ""}
+                    maxLength={MAX_FIELD_LENGTH}
+                    onChange={(e) => set(f.key, e.target.value)}
+                  />
+                  {showWaWarning && (
+                    <div style={{ fontSize: 11.5, color: CORAL_ERR, marginTop: 5 }}>
+                      Missing the country code — WhatsApp won't open right without it (e.g. +91 for India).
+                    </div>
+                  )}
                 </div>
-                <input
-                  className="dc-input"
-                  placeholder={f.placeholder}
-                  value={data[f.key] || ""}
-                  maxLength={MAX_FIELD_LENGTH}
-                  onChange={(e) => set(f.key, e.target.value)}
-                />
-              </div>
-            ))}
+              );
+            })}
           </div>
         </section>
         )}
@@ -741,7 +784,7 @@ export default function DigitalCard() {
           {!sharedView && (
             <div style={{ textAlign: "center", color: MUTED, fontSize: 11.5, marginTop: 14 }}>
               "Share Card" makes a short link with your details — no account, no server.{" "}
-              {data.photo ? "Your photo stays on this device and isn't included in the link." : ""}
+              {data.photo ? "A small version of your photo is included in the link." : ""}
             </div>
           )}
 
