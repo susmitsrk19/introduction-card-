@@ -11,6 +11,8 @@ import {
   Check,
   Sparkles,
   Camera,
+  QrCode,
+  X,
 } from "lucide-react";
 
 const BG = "#14161A";
@@ -75,6 +77,34 @@ function decodeCardData(str) {
   const b64 = str.replace(/-/g, "+").replace(/_/g, "/");
   const json = decodeURIComponent(escape(atob(b64)));
   return JSON.parse(json);
+}
+
+// Loads a small, well-known QR library once and caches it on window, so
+// the QR code is generated entirely in the browser — the card data never
+// leaves the device, unlike a link-shortening service.
+function loadQrLib() {
+  return new Promise((resolve, reject) => {
+    if (window.__qrEncode) return resolve();
+    const script = document.createElement("script");
+    script.src = "https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js";
+    script.onload = () => {
+      window.__qrEncode = (text, size) => {
+        const tmp = document.createElement("div");
+        // eslint-disable-next-line no-undef
+        new QRCode(tmp, { text, width: size, height: size, correctLevel: QRCode.CorrectLevel.L });
+        return tmp;
+      };
+      resolve();
+    };
+    script.onerror = () => reject(new Error("QR library failed to load"));
+    document.head.appendChild(script);
+  });
+}
+
+function qrImageFrom(holderDiv) {
+  const el = holderDiv.querySelector("canvas") || holderDiv.querySelector("img");
+  if (!el) return null;
+  return el.toDataURL ? el.toDataURL("image/png") : el.src;
 }
 
 // Shrinks the person's saved photo down to a tiny thumbnail just for the
@@ -156,6 +186,10 @@ export default function DigitalCard() {
   const [sharedView, setSharedView] = useState(false);
   const [shareCopied, setShareCopied] = useState(false);
   const [shareBusy, setShareBusy] = useState(false);
+  const [showQR, setShowQR] = useState(false);
+  const [qrImage, setQrImage] = useState(null);
+  const [qrUrl, setQrUrl] = useState("");
+  const [qrError, setQrError] = useState("");
   const cardRef = useRef(null);
   const fileInputRef = useRef(null);
   const [tilt, setTilt] = useState({ x: 0, y: 0 });
@@ -292,51 +326,62 @@ export default function DigitalCard() {
   }
 
   async function shareCard() {
-    // Swap the full-resolution photo for a tiny thumbnail just for the
-    // link — a full photo makes the link too long for messaging apps to
-    // treat as a real, clickable link (it turns into an unclickable wall
-    // of text, or gets cut off). The small thumbnail keeps the link short
-    // while still showing the recipient a face.
+    setShareBusy(true);
+    setQrError("");
+
+    // A small thumbnail keeps the encoded data compact enough to fit
+    // reliably in a QR code. If the QR still fails with the photo
+    // included (rare, e.g. an unusually long name/bio), we retry once
+    // without the photo rather than failing outright.
     const { photo, ...rest } = data;
     let shareable = rest;
     if (photo) {
-      const thumb = await makeShareThumbnail(photo);
+      const thumb = await makeShareThumbnail(photo, 40, 0.4);
       if (thumb) shareable = { ...rest, photo: thumb };
     }
     const url = `${window.location.origin}${window.location.pathname}#c=${encodeCardData(shareable)}`;
 
-    // Try to shorten the link using a free public shortener so it's easy
-    // to read/share. This sends the link (which encodes the card data) to
-    // that third-party service — if it's unreachable or blocked, we just
-    // fall back to the full link so sharing still works either way.
-    let finalUrl = url;
-    setShareBusy(true);
     try {
-      const resp = await fetch(
-        `https://tinyurl.com/api-create.php?url=${encodeURIComponent(url)}`
-      );
-      if (resp.ok) {
-        const short = (await resp.text()).trim();
-        if (short.startsWith("http")) finalUrl = short;
+      await loadQrLib();
+      let holder;
+      try {
+        holder = window.__qrEncode(url, 220);
+      } catch (e) {
+        // Payload too large for a reliable QR — drop the photo and retry.
+        const fallbackUrl = `${window.location.origin}${window.location.pathname}#c=${encodeCardData(rest)}`;
+        holder = window.__qrEncode(fallbackUrl, 220);
+      }
+      const img = qrImageFrom(holder);
+      if (img) {
+        setQrImage(img);
+        setQrUrl(url);
+        setShowQR(true);
+      } else {
+        setQrError("Couldn't generate the QR code — try again.");
       }
     } catch (e) {
-      // Shortener unreachable — proceed with the full link below.
+      setQrError("Couldn't load the QR generator — check your connection and try again.");
+    } finally {
+      setShareBusy(false);
     }
-    setShareBusy(false);
+  }
 
-    if (navigator.share) {
-      // Pass only the url — adding a separate "text" field makes some
-      // apps show the link AND a duplicate line of text.
-      navigator.share({ url: finalUrl }).catch(() => {});
-      return;
-    }
+  function copyQrLink() {
     try {
-      navigator.clipboard?.writeText(finalUrl);
+      navigator.clipboard?.writeText(qrUrl);
     } catch (e) {
-      // Clipboard blocked — the link is still selectable from a prompt below.
+      // Clipboard blocked — the link is still visible/selectable in the modal.
     }
     setShareCopied(true);
-    setTimeout(() => setShareCopied(false), 2200);
+    setTimeout(() => setShareCopied(false), 1800);
+  }
+
+  function downloadQr() {
+    if (!qrImage) return;
+    const a = document.createElement("a");
+    a.href = qrImage;
+    a.download = `${(data.name || "my-card").replace(/\s+/g, "_")}-qr.png`;
+    a.click();
   }
 
   const socials = useMemo(() => {
@@ -537,6 +582,10 @@ export default function DigitalCard() {
         }
         @keyframes dc-spin-anim { to { transform: rotate(360deg); } }
         .dc-spin { animation: dc-spin-anim 0.8s linear infinite; }
+        @keyframes dc-qrpop {
+          from { opacity: 0; transform: scale(0.9) translateY(10px); }
+          to { opacity: 1; transform: scale(1) translateY(0); }
+        }
         @media (prefers-reduced-motion: reduce) {
           .dc-shine, .dc-blob, .dc-avatar::after, .dc-card-wrap { animation: none; }
         }
@@ -789,14 +838,8 @@ export default function DigitalCard() {
             )}
             {!sharedView && (
               <button className="dc-btn primary" style={{ flex: 1 }} onClick={shareCard} disabled={!hasName || shareBusy}>
-                {shareBusy ? (
-                  <Sparkles size={16} className="dc-spin" />
-                ) : shareCopied ? (
-                  <Check size={16} />
-                ) : (
-                  <Sparkles size={16} />
-                )}
-                {shareBusy ? "Shortening…" : shareCopied ? "Link copied!" : "Share Card"}
+                {shareBusy ? <Sparkles size={16} className="dc-spin" /> : <QrCode size={16} />}
+                {shareBusy ? "Generating…" : "Share as QR"}
               </button>
             )}
             <button
@@ -809,9 +852,72 @@ export default function DigitalCard() {
             </button>
           </div>
 
+          {qrError && (
+            <div style={{ textAlign: "center", color: CORAL_ERR, fontSize: 12, marginTop: 10 }}>{qrError}</div>
+          )}
+
           {!sharedView && (
             <div style={{ textAlign: "center", color: MUTED, fontSize: 11.5, marginTop: 14 }}>
-              "Share Card" makes a short link with your details — including a small version of your photo, if you added one.
+              "Share as QR" makes a scannable code with your details — generated right on this device, sent nowhere.
+            </div>
+          )}
+
+          {showQR && (
+            <div
+              onClick={() => setShowQR(false)}
+              style={{
+                position: "fixed",
+                inset: 0,
+                background: "rgba(10,11,13,0.7)",
+                backdropFilter: "blur(4px)",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                zIndex: 50,
+                padding: 20,
+              }}
+            >
+              <div
+                onClick={(e) => e.stopPropagation()}
+                style={{
+                  background: PANEL,
+                  border: `1px solid ${LINE}`,
+                  borderRadius: 18,
+                  padding: 26,
+                  maxWidth: 340,
+                  width: "100%",
+                  textAlign: "center",
+                  position: "relative",
+                  animation: "dc-qrpop 0.3s cubic-bezier(0.34,1.56,0.64,1) both",
+                }}
+              >
+                <div
+                  onClick={() => setShowQR(false)}
+                  style={{ position: "absolute", top: 14, right: 14, cursor: "pointer", color: MUTED }}
+                >
+                  <X size={18} />
+                </div>
+                <div style={{ fontFamily: displayFont, fontSize: 18, fontWeight: 700, marginBottom: 4 }}>
+                  Scan to view {data.name ? `${data.name}'s` : "the"} card
+                </div>
+                <div style={{ color: MUTED, fontSize: 12.5, marginBottom: 18 }}>
+                  Or share the image itself — either way works.
+                </div>
+                {qrImage && (
+                  <div style={{ background: "#fff", borderRadius: 14, padding: 14, display: "inline-block" }}>
+                    <img src={qrImage} alt="QR code" width={200} height={200} style={{ display: "block" }} />
+                  </div>
+                )}
+                <div style={{ display: "flex", gap: 10, marginTop: 18 }}>
+                  <button className="dc-btn ghost" style={{ flex: 1 }} onClick={downloadQr}>
+                    <Download size={15} /> Save QR
+                  </button>
+                  <button className="dc-btn ghost" style={{ flex: 1 }} onClick={copyQrLink}>
+                    {shareCopied ? <Check size={15} color={GOLD} /> : <Copy size={15} />}
+                    {shareCopied ? "Copied" : "Copy Link"}
+                  </button>
+                </div>
+              </div>
             </div>
           )}
 
