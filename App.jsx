@@ -36,6 +36,47 @@ function initials(name) {
     .join("") || "?";
 }
 
+// Build real, clickable URLs from whatever shorthand the user typed
+// (a bare handle, an @handle, a phone number, a partial URL, etc.)
+function normalizeUrl(url) {
+  if (!url) return "";
+  const trimmed = url.trim();
+  return /^https?:\/\//i.test(trimmed) ? trimmed : `https://${trimmed}`;
+}
+function waLink(phone) {
+  const digits = String(phone || "").replace(/[^\d]/g, "");
+  return digits ? `https://wa.me/${digits}` : "";
+}
+function igLink(handle) {
+  const h = String(handle || "")
+    .trim()
+    .replace(/^@/, "")
+    .replace(/^https?:\/\/(www\.)?instagram\.com\//i, "")
+    .replace(/\/+$/, "");
+  return h ? `https://instagram.com/${h}` : "";
+}
+function liLink(handle) {
+  const h = String(handle || "").trim();
+  if (!h) return "";
+  return /^https?:\/\//i.test(h) ? h : `https://linkedin.com/in/${h.replace(/^\/+/, "")}`;
+}
+
+// Pack the whole card into a URL-safe string, and back — this is what
+// makes a card shareable without needing a server or database: the
+// recipient's browser decodes the link and renders the card directly.
+function encodeCardData(obj) {
+  const json = JSON.stringify(obj);
+  return btoa(unescape(encodeURIComponent(json)))
+    .replace(/\+/g, "-")
+    .replace(/\//g, "_")
+    .replace(/=+$/, "");
+}
+function decodeCardData(str) {
+  const b64 = str.replace(/-/g, "+").replace(/_/g, "/");
+  const json = decodeURIComponent(escape(atob(b64)));
+  return JSON.parse(json);
+}
+
 // Escape special vCard characters so a crafted value (e.g. containing
 // newlines, semicolons, or backslashes) can't break the exported file
 // or inject extra vCard fields.
@@ -82,15 +123,35 @@ const FIELDS = [
 export default function DigitalCard() {
   const [data, setData] = useState({});
   const [loaded, setLoaded] = useState(false);
-  const [copied, setCopied] = useState(false);
   const [entered, setEntered] = useState(false);
   const [burst, setBurst] = useState(false);
   const [photoError, setPhotoError] = useState("");
+  const [sharedView, setSharedView] = useState(false);
+  const [shareCopied, setShareCopied] = useState(false);
   const cardRef = useRef(null);
   const fileInputRef = useRef(null);
   const [tilt, setTilt] = useState({ x: 0, y: 0 });
 
   useEffect(() => {
+    // If the URL carries a shared card (from someone's "Share" link),
+    // show THAT card in read-only mode — and never touch localStorage,
+    // so we don't clobber the viewer's own saved card.
+    const hash = window.location.hash || "";
+    if (hash.startsWith("#c=")) {
+      try {
+        const decoded = decodeCardData(hash.slice(3));
+        if (decoded && typeof decoded === "object" && !Array.isArray(decoded)) {
+          setData(decoded);
+          setSharedView(true);
+          setLoaded(true);
+          setTimeout(() => setEntered(true), 80);
+          return;
+        }
+      } catch (e) {
+        // Malformed/corrupted link — fall through to normal edit mode.
+      }
+    }
+
     try {
       const raw = localStorage.getItem("card-data");
       if (raw) {
@@ -110,16 +171,19 @@ export default function DigitalCard() {
   }, []);
 
   useEffect(() => {
-    if (!loaded) return;
+    if (!loaded || sharedView) return;
     try {
       localStorage.setItem("card-data", JSON.stringify(data));
     } catch (e) {
       // Storage full or blocked — fail silently, don't crash the page.
     }
-  }, [data, loaded]);
+  }, [data, loaded, sharedView]);
 
   function set(key, value) {
-    setData((d) => ({ ...d, [key]: String(value).slice(0, MAX_FIELD_LENGTH) }));
+    // The photo is a long base64 data URL — never truncate it. Only cap
+    // ordinary text fields to keep them sane.
+    const v = key === "photo" ? String(value) : String(value).slice(0, MAX_FIELD_LENGTH);
+    setData((d) => ({ ...d, [key]: v }));
   }
 
   function handlePhotoPick() {
@@ -156,7 +220,7 @@ export default function DigitalCard() {
         setTimeout(() => setPhotoError(""), 2500);
       };
       img.onload = () => {
-        const size = 240;
+        const size = 200;
         const canvas = document.createElement("canvas");
         canvas.width = size;
         canvas.height = size;
@@ -166,8 +230,10 @@ export default function DigitalCard() {
         const h = img.height * scale;
         ctx.drawImage(img, (size - w) / 2, (size - h) / 2, w, h);
         // Re-encoding through canvas strips any embedded scripts/metadata
-        // from the original file — only pixel data survives.
-        set("photo", canvas.toDataURL("image/jpeg", 0.85));
+        // from the original file — only pixel data survives. Quality is
+        // kept modest so the shareable link (which embeds this image)
+        // stays a reasonable length.
+        set("photo", canvas.toDataURL("image/jpeg", 0.7));
       };
       img.src = reader.result;
     };
@@ -197,25 +263,29 @@ export default function DigitalCard() {
     setTimeout(() => setBurst(false), 900);
   }
 
-  function copyLink() {
-    const text = `${data.name || ""} — ${data.title || ""}\n${data.phone || ""}\n${data.email || ""}`;
-    try {
-      navigator.clipboard?.writeText(text);
-    } catch (e) {
-      // Clipboard API can be blocked by the browser; fail silently and
-      // let the user copy manually rather than throwing.
+  function shareCard() {
+    const url = `${window.location.origin}${window.location.pathname}#c=${encodeCardData(data)}`;
+    const shareText = `${data.name || "My"}'s digital card`;
+    if (navigator.share) {
+      navigator.share({ title: shareText, url }).catch(() => {});
+      return;
     }
-    setCopied(true);
-    setTimeout(() => setCopied(false), 1600);
+    try {
+      navigator.clipboard?.writeText(url);
+    } catch (e) {
+      // Clipboard blocked — the link is still selectable from a prompt below.
+    }
+    setShareCopied(true);
+    setTimeout(() => setShareCopied(false), 2200);
   }
 
   const socials = useMemo(() => {
     const s = [];
-    if (data.whatsapp) s.push({ icon: MessageCircle, color: "#3FBF63", key: "whatsapp" });
-    if (data.instagram) s.push({ icon: Instagram, color: "#D6558C", key: "instagram" });
-    if (data.linkedin) s.push({ icon: Linkedin, color: "#4C8FD9", key: "linkedin" });
-    if (data.website) s.push({ icon: Globe, color: ICE, key: "website" });
-    return s;
+    if (data.whatsapp) s.push({ icon: MessageCircle, color: "#3FBF63", key: "whatsapp", href: waLink(data.whatsapp) });
+    if (data.instagram) s.push({ icon: Instagram, color: "#D6558C", key: "instagram", href: igLink(data.instagram) });
+    if (data.linkedin) s.push({ icon: Linkedin, color: "#4C8FD9", key: "linkedin", href: liLink(data.linkedin) });
+    if (data.website) s.push({ icon: Globe, color: ICE, key: "website", href: normalizeUrl(data.website) });
+    return s.filter((x) => x.href);
   }, [data]);
 
   const hasName = !!(data.name && data.name.trim());
@@ -380,6 +450,7 @@ export default function DigitalCard() {
           border: 1px solid rgba(255,255,255,0.08);
           transition: transform 0.2s cubic-bezier(0.34, 1.56, 0.64, 1), background 0.2s ease;
           cursor: pointer;
+          text-decoration: none;
         }
         .dc-social:hover { transform: translateY(-4px) scale(1.08); }
         .dc-btn {
@@ -443,14 +514,17 @@ export default function DigitalCard() {
             }}
           >
             <Sparkles size={20} color={GOLD} />
-            Your Digital Card
+            {sharedView ? `${data.name || "Someone"}'s Card` : "Your Digital Card"}
           </div>
           <div style={{ color: MUTED, fontSize: 14, marginTop: 4 }}>
-            Fill it in, watch it come to life, share it anywhere.
+            {sharedView
+              ? "Save their contact, or make your own below."
+              : "Fill it in, watch it come to life, share it anywhere."}
           </div>
         </header>
 
-        {/* Form */}
+        {/* Form — hidden while viewing someone else's shared card */}
+        {!sharedView && (
         <section
           style={{
             background: PANEL,
@@ -519,6 +593,7 @@ export default function DigitalCard() {
             ))}
           </div>
         </section>
+        )}
 
         {/* Card preview */}
         <div style={{ position: "sticky", top: 20 }}>
@@ -594,9 +669,16 @@ export default function DigitalCard() {
                     {socials.map((s) => {
                       const Icon = s.icon;
                       return (
-                        <div key={s.key} className="dc-social">
+                        <a
+                          key={s.key}
+                          href={s.href}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="dc-social"
+                          title={s.key}
+                        >
                           <Icon size={16} color={s.color} />
-                        </div>
+                        </a>
                       );
                     })}
                   </div>
@@ -626,17 +708,39 @@ export default function DigitalCard() {
                 })}
               </span>
             )}
-            <button className="dc-btn primary" style={{ flex: 1 }} onClick={downloadCard} disabled={!hasName}>
+            {!sharedView && (
+              <button className="dc-btn primary" style={{ flex: 1 }} onClick={shareCard} disabled={!hasName}>
+                {shareCopied ? <Check size={16} /> : <Sparkles size={16} />}
+                {shareCopied ? "Link copied!" : "Share Card"}
+              </button>
+            )}
+            <button
+              className={sharedView ? "dc-btn primary" : "dc-btn ghost"}
+              style={{ flex: 1 }}
+              onClick={downloadCard}
+              disabled={!hasName}
+            >
               <Download size={16} /> Save Contact
             </button>
-            <button className="dc-btn ghost" style={{ flex: 1 }} onClick={copyLink} disabled={!hasName}>
-              {copied ? <Check size={16} color={GOLD} /> : <Copy size={16} />}
-              {copied ? "Copied" : "Copy Info"}
-            </button>
           </div>
-          <div style={{ textAlign: "center", color: MUTED, fontSize: 11.5, marginTop: 14 }}>
-            Saved on this device · tilt the card with your cursor
-          </div>
+
+          {!sharedView && (
+            <div style={{ textAlign: "center", color: MUTED, fontSize: 11.5, marginTop: 14 }}>
+              "Share Card" makes a link with everything in it — no account, no server.{" "}
+              {data.photo ? "Since it includes your photo, the link is long — that's normal." : ""}
+            </div>
+          )}
+
+          {sharedView && (
+            <div style={{ textAlign: "center", marginTop: 18 }}>
+              <a
+                href={window.location.pathname}
+                style={{ color: GOLD, fontSize: 13.5, fontWeight: 600, textDecoration: "none" }}
+              >
+                Create your own digital card →
+              </a>
+            </div>
+          )}
         </div>
       </div>
     </div>
