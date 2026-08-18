@@ -1,4 +1,6 @@
 import React, { useState, useEffect, useMemo, useRef } from "react";
+import { initializeApp } from "firebase/app";
+import { getFirestore, collection, addDoc, doc, getDoc } from "firebase/firestore";
 import {
   Phone,
   Mail,
@@ -14,6 +16,22 @@ import {
   QrCode,
   X,
 } from "lucide-react";
+
+// ⚠️ PASTE YOUR FIREBASE CONFIG HERE — replace every "REPLACE_ME" below
+// with the matching value from your Firebase project (Project Settings →
+// Your apps → the </> web app → SDK setup and configuration).
+// These values are meant to be public/client-visible — that's normal for
+// Firebase; access is controlled by the Firestore security rules instead.
+const firebaseConfig = {
+  apiKey: "AIzaSyAHSVdZom9O2MyUwF0bAp-ajlgLqQ33Z_0",
+  authDomain: "digital-introduction-card.firebaseapp.com",
+  projectId: "digital-introduction-card",
+  storageBucket: "digital-introduction-card.firebasestorage.app",
+  messagingSenderId: "852529891848",
+  appId: "1:852529891848:web:0502174cbffc99bfd2dfbd",
+};
+const firebaseApp = initializeApp(firebaseConfig);
+const db = getFirestore(firebaseApp);
 
 const BG = "#14161A";
 const CARD_TOP = "#1D2229";
@@ -195,23 +213,31 @@ export default function DigitalCard() {
   const [tilt, setTilt] = useState({ x: 0, y: 0 });
 
   useEffect(() => {
-    // If the URL carries a shared card (from someone's "Share" link),
-    // show THAT card in read-only mode — and never touch localStorage,
-    // so we don't clobber the viewer's own saved card.
-    const hash = window.location.hash || "";
-    if (hash.startsWith("#c=")) {
-      try {
-        const decoded = decodeCardData(hash.slice(3));
-        if (decoded && typeof decoded === "object" && !Array.isArray(decoded)) {
-          setData(decoded);
-          setSharedView(true);
+    // If the URL carries a shared card's id (from someone's QR/link), fetch
+    // that card from Firestore and show it in read-only mode — and never
+    // touch localStorage, so we don't clobber the viewer's own saved card.
+    const params = new URLSearchParams(window.location.search);
+    const sharedId = params.get("id");
+    if (sharedId) {
+      (async () => {
+        try {
+          const snap = await getDoc(doc(db, "cards", sharedId));
+          if (snap.exists()) {
+            const decoded = snap.data();
+            if (decoded && typeof decoded === "object" && !Array.isArray(decoded)) {
+              setData(decoded);
+              setSharedView(true);
+            }
+          }
+        } catch (e) {
+          // Network error or missing/misconfigured Firebase — fall back
+          // to a normal blank editor rather than breaking the page.
+        } finally {
           setLoaded(true);
           setTimeout(() => setEntered(true), 80);
-          return;
         }
-      } catch (e) {
-        // Malformed/corrupted link — fall through to normal edit mode.
-      }
+      })();
+      return;
     }
 
     try {
@@ -329,28 +355,16 @@ export default function DigitalCard() {
     setShareBusy(true);
     setQrError("");
 
-    // A small thumbnail keeps the encoded data compact enough to fit
-    // reliably in a QR code. If the QR still fails with the photo
-    // included (rare, e.g. an unusually long name/bio), we retry once
-    // without the photo rather than failing outright.
-    const { photo, ...rest } = data;
-    let shareable = rest;
-    if (photo) {
-      const thumb = await makeShareThumbnail(photo, 40, 0.4);
-      if (thumb) shareable = { ...rest, photo: thumb };
-    }
-    const url = `${window.location.origin}${window.location.pathname}#c=${encodeCardData(shareable)}`;
-
     try {
+      // Save the FULL card — photo included — to Firestore, and share only
+      // a short id. This is what makes the link short AND lets the photo
+      // travel with it: the actual data lives on the server, not in the
+      // link/QR itself.
+      const docRef = await addDoc(collection(db, "cards"), data);
+      const url = `${window.location.origin}${window.location.pathname}?id=${docRef.id}`;
+
       await loadQrLib();
-      let holder;
-      try {
-        holder = window.__qrEncode(url, 220);
-      } catch (e) {
-        // Payload too large for a reliable QR — drop the photo and retry.
-        const fallbackUrl = `${window.location.origin}${window.location.pathname}#c=${encodeCardData(rest)}`;
-        holder = window.__qrEncode(fallbackUrl, 220);
-      }
+      const holder = window.__qrEncode(url, 220);
       const img = qrImageFrom(holder);
       if (img) {
         setQrImage(img);
@@ -360,7 +374,7 @@ export default function DigitalCard() {
         setQrError("Couldn't generate the QR code — try again.");
       }
     } catch (e) {
-      setQrError("Couldn't load the QR generator — check your connection and try again.");
+      setQrError("Couldn't create the share link — check your connection and try again.");
     } finally {
       setShareBusy(false);
     }
@@ -858,7 +872,7 @@ export default function DigitalCard() {
 
           {!sharedView && (
             <div style={{ textAlign: "center", color: MUTED, fontSize: 11.5, marginTop: 14 }}>
-              "Share as QR" makes a scannable code with your details — generated right on this device, sent nowhere.
+              "Share as QR" saves your card and gives you a short, scannable link — photo included.
             </div>
           )}
 
@@ -901,7 +915,7 @@ export default function DigitalCard() {
                   Scan to view {data.name ? `${data.name}'s` : "the"} card
                 </div>
                 <div style={{ color: MUTED, fontSize: 12.5, marginBottom: 18 }}>
-                  Or share the image itself — either way works.
+                  Everything on the card — photo included — travels with this.
                 </div>
                 {qrImage && (
                   <div style={{ background: "#fff", borderRadius: 14, padding: 14, display: "inline-block" }}>
