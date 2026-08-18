@@ -409,6 +409,88 @@ export default function DigitalCard() {
 
   const hasName = !!(data.name && data.name.trim());
 
+  // Show a simple loader instead of the (empty) edit form while we're
+  // still checking localStorage or fetching a shared card from Firestore —
+  // this is what stops the "fill in your profile" screen from flashing
+  // for a moment before someone's shared card actually appears.
+  if (!loaded) {
+    return (
+      <div
+        style={{
+          background: BG,
+          minHeight: "100%",
+          display: "flex",
+          flexDirection: "column",
+          alignItems: "center",
+          justifyContent: "center",
+          gap: 18,
+          color: MUTED,
+          fontFamily: uiFont,
+        }}
+      >
+        <style>{`
+          @keyframes dc-loader-tilt {
+            0%, 100% { transform: rotate(-6deg) translateY(0); }
+            50% { transform: rotate(6deg) translateY(-4px); }
+          }
+          @keyframes dc-loader-sweep {
+            0% { transform: translateX(-120%) skewX(-15deg); }
+            100% { transform: translateX(220%) skewX(-15deg); }
+          }
+          @keyframes dc-loader-glow {
+            0%, 100% { box-shadow: 0 0 0 0 rgba(212,175,106,0.35); }
+            50% { box-shadow: 0 0 22px 4px rgba(212,175,106,0.35); }
+          }
+          @keyframes dc-loader-dots {
+            0%, 100% { opacity: 0.25; }
+            50% { opacity: 1; }
+          }
+        `}</style>
+        <div
+          style={{
+            width: 74,
+            height: 48,
+            borderRadius: 10,
+            background: `linear-gradient(145deg, ${CARD_TOP}, ${CARD_BOTTOM})`,
+            border: `1px solid rgba(212,175,106,0.35)`,
+            position: "relative",
+            overflow: "hidden",
+            animation: "dc-loader-tilt 1.6s ease-in-out infinite, dc-loader-glow 1.6s ease-in-out infinite",
+          }}
+        >
+          <div
+            style={{
+              position: "absolute",
+              top: 10,
+              left: 10,
+              width: 16,
+              height: 16,
+              borderRadius: "50%",
+              background: `linear-gradient(135deg, ${GOLD}, #8A6A2E)`,
+            }}
+          />
+          <div style={{ position: "absolute", top: 12, left: 34, width: 30, height: 3, borderRadius: 2, background: "rgba(243,241,234,0.35)" }} />
+          <div style={{ position: "absolute", top: 20, left: 34, width: 20, height: 3, borderRadius: 2, background: "rgba(243,241,234,0.2)" }} />
+          <div
+            style={{
+              position: "absolute",
+              inset: 0,
+              background:
+                "linear-gradient(115deg, transparent 40%, rgba(212,175,106,0.5) 50%, transparent 60%)",
+              animation: "dc-loader-sweep 1.3s ease-in-out infinite",
+            }}
+          />
+        </div>
+        <div style={{ fontSize: 12.5, letterSpacing: "0.04em" }}>
+          Loading card
+          <span style={{ display: "inline-block", animation: "dc-loader-dots 1.4s ease-in-out infinite" }}>.</span>
+          <span style={{ display: "inline-block", animation: "dc-loader-dots 1.4s ease-in-out 0.2s infinite" }}>.</span>
+          <span style={{ display: "inline-block", animation: "dc-loader-dots 1.4s ease-in-out 0.4s infinite" }}>.</span>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div
       style={{
