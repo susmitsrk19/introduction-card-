@@ -24,14 +24,6 @@ import {
   Camera,
   QrCode,
   X,
-  Heart,
-  TrendingUp,
-  BookOpen,
-  Code2,
-  Palette,
-  Scale,
-  Dumbbell,
-  UtensilsCrossed,
 } from "lucide-react";
 
 // ⚠️ PASTE YOUR FIREBASE CONFIG HERE — replace every "REPLACE_ME" below
@@ -114,26 +106,7 @@ const BG_ANIMS = [
   { id: "bokeh", label: "Bokeh" },
   { id: "confetti", label: "Confetti" },
   { id: "none", label: "None" },
-  { id: "medical", label: "Medical", group: "profession" },
-  { id: "business", label: "Business", group: "profession" },
-  { id: "education", label: "Education", group: "profession" },
-  { id: "tech", label: "Tech", group: "profession" },
-  { id: "creative", label: "Creative", group: "profession" },
-  { id: "legal", label: "Legal", group: "profession" },
-  { id: "fitness", label: "Fitness", group: "profession" },
-  { id: "food", label: "Culinary", group: "profession" },
 ];
-
-const PROFESSION_ICONS = {
-  medical: Heart,
-  business: TrendingUp,
-  education: BookOpen,
-  tech: Code2,
-  creative: Palette,
-  legal: Scale,
-  fitness: Dumbbell,
-  food: UtensilsCrossed,
-};
 
 const displayFont = "Georgia, 'Iowan Old Style', 'Times New Roman', serif";
 const uiFont = "ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif";
@@ -402,33 +375,6 @@ function renderBackground(style, { GOLD, ICE }) {
               }}
             >
               {shapes[i % shapes.length]}
-            </div>
-          );
-        })}
-      </>
-    );
-  }
-
-  if (PROFESSION_ICONS[s]) {
-    const Icon = PROFESSION_ICONS[s];
-    const icons = Array.from({ length: 9 });
-    return (
-      <>
-        {icons.map((_, i) => {
-          const left = (i * 29) % 100;
-          const duration = 8 + (i % 5) * 1.5;
-          const size = 16 + (i % 3) * 6;
-          return (
-            <div
-              key={i}
-              className="dc-prof-icon"
-              style={{
-                left: `${left}%`,
-                animationDuration: `${duration}s`,
-                animationDelay: `${(i % 6) * 1.2}s`,
-              }}
-            >
-              <Icon size={size} color={i % 2 === 0 ? GOLD : ICE} strokeWidth={1.75} />
             </div>
           );
         })}
@@ -866,17 +812,6 @@ export default function DigitalCard() {
           90% { opacity: 0.5; }
           100% { transform: translateY(110vh) rotate(220deg); opacity: 0; }
         }
-        .dc-prof-icon {
-          position: absolute;
-          opacity: 0.35;
-          animation: dc-prof-rise linear infinite;
-        }
-        @keyframes dc-prof-rise {
-          0% { transform: translateY(110vh) scale(0.7) rotate(0deg); opacity: 0; }
-          15% { opacity: 0.4; }
-          85% { opacity: 0.32; }
-          100% { transform: translateY(-10vh) scale(1.1) rotate(15deg); opacity: 0; }
-        }
         .dc-input {
           width: 100%;
           padding: 11px 13px;
@@ -960,12 +895,7 @@ export default function DigitalCard() {
           inset: -5px;
           border-radius: 50%;
           border: 1.5px solid rgba(212,175,106,0.4);
-          animation: dc-ring 2.4s ease-in-out 3;
           pointer-events: none;
-        }
-        @keyframes dc-ring {
-          0%, 100% { transform: scale(1); opacity: 0.6; }
-          50% { transform: scale(1.12); opacity: 0.15; }
         }
         @keyframes dc-pop {
           0% { opacity: 0; transform: scale(0.5) rotate(-8deg); }
@@ -1046,7 +976,7 @@ export default function DigitalCard() {
         }
         @media (prefers-reduced-motion: reduce) {
           .dc-shine, .dc-blob, .dc-avatar::after, .dc-card-wrap,
-          .dc-star, .dc-aurora, .dc-grid, .dc-bokeh, .dc-confetti-bit, .dc-prof-icon { animation: none; }
+          .dc-star, .dc-aurora, .dc-grid, .dc-bokeh, .dc-confetti-bit { animation: none; }
         }
       `}</style>
 
@@ -1160,43 +1090,14 @@ export default function DigitalCard() {
               <div style={{ fontSize: 11.5, color: MUTED, fontWeight: 600, marginBottom: 8, letterSpacing: "0.03em" }}>
                 BACKGROUND ANIMATION
               </div>
-              <div style={{ fontSize: 10.5, color: MUTED, marginBottom: 6 }}>General</div>
-              <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 14 }}>
-                {BG_ANIMS.filter((b) => !b.group).map((b) => {
-                  const active = (data.bgAnim || "blobs") === b.id;
-                  return (
-                    <span
-                      key={b.id}
-                      onClick={() => set("bgAnim", b.id)}
-                      style={{
-                        padding: "7px 12px",
-                        borderRadius: 999,
-                        border: active ? `1.5px solid ${GOLD}` : `1.5px solid ${LINE}`,
-                        background: active ? "rgba(212,175,106,0.12)" : PANEL,
-                        color: active ? GOLD : MUTED,
-                        fontSize: 12.5,
-                        fontWeight: 600,
-                        cursor: "pointer",
-                      }}
-                    >
-                      {b.label}
-                    </span>
-                  );
-                })}
-              </div>
-              <div style={{ fontSize: 10.5, color: MUTED, marginBottom: 6 }}>By profession</div>
               <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-                {BG_ANIMS.filter((b) => b.group === "profession").map((b) => {
+                {BG_ANIMS.map((b) => {
                   const active = (data.bgAnim || "blobs") === b.id;
-                  const Icon = PROFESSION_ICONS[b.id];
                   return (
                     <span
                       key={b.id}
                       onClick={() => set("bgAnim", b.id)}
                       style={{
-                        display: "inline-flex",
-                        alignItems: "center",
-                        gap: 6,
                         padding: "7px 12px",
                         borderRadius: 999,
                         border: active ? `1.5px solid ${GOLD}` : `1.5px solid ${LINE}`,
@@ -1207,7 +1108,6 @@ export default function DigitalCard() {
                         cursor: "pointer",
                       }}
                     >
-                      {Icon && <Icon size={13} />}
                       {b.label}
                     </span>
                   );
