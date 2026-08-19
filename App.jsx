@@ -815,15 +815,15 @@ export default function DigitalCard() {
           animation: dc-twinkle 2.6s ease-in-out infinite;
         }
         @keyframes dc-twinkle {
-          0%, 100% { opacity: 0.15; transform: scale(0.8); }
-          50% { opacity: 0.9; transform: scale(1.3); }
+          0%, 100% { opacity: 0.12; transform: scale(0.8); }
+          50% { opacity: 0.5; transform: scale(1.2); }
         }
         .dc-aurora {
           position: absolute;
           inset: -20%;
-          background: linear-gradient(120deg, ${GOLD}22, ${ICE}22, transparent, ${GOLD}18);
+          background: linear-gradient(120deg, ${GOLD}18, ${ICE}18, transparent, ${GOLD}12);
           background-size: 300% 300%;
-          animation: dc-aurora-move 16s ease-in-out infinite;
+          animation: dc-aurora-move 20s ease-in-out infinite;
           filter: blur(40px);
         }
         @keyframes dc-aurora-move {
@@ -835,11 +835,11 @@ export default function DigitalCard() {
           inset: 0;
           background-image: radial-gradient(${GOLD}33 1.4px, transparent 1.4px);
           background-size: 26px 26px;
-          animation: dc-grid-pulse 4s ease-in-out infinite;
+          animation: dc-grid-pulse 6s ease-in-out infinite;
         }
         @keyframes dc-grid-pulse {
-          0%, 100% { opacity: 0.35; }
-          50% { opacity: 0.75; }
+          0%, 100% { opacity: 0.25; }
+          50% { opacity: 0.4; }
         }
         .dc-bokeh {
           position: absolute;
@@ -909,8 +909,8 @@ export default function DigitalCard() {
         .dc-shine {
           position: absolute;
           inset: -50%;
-          background: linear-gradient(115deg, transparent 40%, rgba(212,175,106,0.16) 48%, rgba(255,255,255,0.25) 50%, rgba(212,175,106,0.16) 52%, transparent 60%);
-          animation: dc-sweep 5s ease-in-out infinite;
+          background: linear-gradient(115deg, transparent 42%, rgba(212,175,106,0.10) 49%, rgba(243,241,234,0.12) 50%, rgba(212,175,106,0.10) 51%, transparent 58%);
+          animation: dc-sweep 9s ease-in-out infinite;
           pointer-events: none;
         }
         @keyframes dc-sweep {
