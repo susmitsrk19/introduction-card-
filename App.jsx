@@ -1,6 +1,15 @@
 import React, { useState, useEffect, useMemo, useRef } from "react";
 import { initializeApp } from "firebase/app";
-import { getFirestore, collection, addDoc, doc, getDoc } from "firebase/firestore";
+import {
+  getFirestore,
+  collection,
+  addDoc,
+  doc,
+  getDoc,
+  query,
+  where,
+  getCountFromServer,
+} from "firebase/firestore";
 import {
   Phone,
   Mail,
@@ -33,16 +42,61 @@ const firebaseConfig = {
 const firebaseApp = initializeApp(firebaseConfig);
 const db = getFirestore(firebaseApp);
 
-const BG = "#14161A";
-const CARD_TOP = "#1D2229";
-const CARD_BOTTOM = "#0E1013";
-const GOLD = "#D4AF6A";
-const ICE = "#7FD9D4";
-const CREAM = "#F3F1EA";
-const MUTED = "#9A9690";
-const PANEL = "#1B1E24";
-const LINE = "#2A2E36";
-const CORAL_ERR = "#E07856";
+const THEMES = {
+  gold: {
+    label: "Midnight Gold",
+    BG: "#14161A",
+    CARD_TOP: "#1D2229",
+    CARD_BOTTOM: "#0E1013",
+    GOLD: "#D4AF6A",
+    ICE: "#7FD9D4",
+    CREAM: "#F3F1EA",
+    MUTED: "#9A9690",
+    PANEL: "#1B1E24",
+    LINE: "#2A2E36",
+    CORAL_ERR: "#E07856",
+  },
+  sapphire: {
+    label: "Sapphire Night",
+    BG: "#0F1420",
+    CARD_TOP: "#182236",
+    CARD_BOTTOM: "#0A0E18",
+    GOLD: "#6FA8DC",
+    ICE: "#8FE3D8",
+    CREAM: "#EDF2FA",
+    MUTED: "#8D96AC",
+    PANEL: "#141B2B",
+    LINE: "#26314A",
+    CORAL_ERR: "#E07856",
+  },
+  rose: {
+    label: "Rosewood",
+    BG: "#1A1116",
+    CARD_TOP: "#251720",
+    CARD_BOTTOM: "#120B0F",
+    GOLD: "#E08FA0",
+    ICE: "#F2B8A8",
+    CREAM: "#F8ECEF",
+    MUTED: "#B08E96",
+    PANEL: "#20141A",
+    LINE: "#3A2530",
+    CORAL_ERR: "#FF8A73",
+  },
+  emerald: {
+    label: "Emerald Dusk",
+    BG: "#0E1712",
+    CARD_TOP: "#16241C",
+    CARD_BOTTOM: "#0A120D",
+    GOLD: "#7FC29B",
+    ICE: "#A9E4C8",
+    CREAM: "#EDF5EF",
+    MUTED: "#8FAC9B",
+    PANEL: "#13201A",
+    LINE: "#26392F",
+    CORAL_ERR: "#E88A6C",
+  },
+};
+const THEME_ORDER = ["gold", "sapphire", "rose", "emerald"];
 
 const displayFont = "Georgia, 'Iowan Old Style', 'Times New Roman', serif";
 const uiFont = "ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif";
@@ -123,6 +177,33 @@ function qrImageFrom(holderDiv) {
   const el = holderDiv.querySelector("canvas") || holderDiv.querySelector("img");
   if (!el) return null;
   return el.toDataURL ? el.toDataURL("image/png") : el.src;
+}
+
+// Fire-and-forget event logging for the simple view/click analytics.
+// Failures here (offline, ad-blockers, etc.) should never affect the
+// actual card experience, so every call is wrapped and ignored on error.
+function logCardEvent(cardId, type, target) {
+  if (!cardId) return;
+  try {
+    addDoc(collection(db, "events"), {
+      cardId,
+      type,
+      target: target || null,
+      ts: Date.now(),
+    }).catch(() => {});
+  } catch (e) {
+    // Ignore — analytics should never break the card.
+  }
+}
+
+async function countCardEvents(cardId, type) {
+  const q = query(
+    collection(db, "events"),
+    where("cardId", "==", cardId),
+    where("type", "==", type)
+  );
+  const snap = await getCountFromServer(q);
+  return snap.data().count;
 }
 
 // Shrinks the person's saved photo down to a tiny thumbnail just for the
@@ -208,9 +289,19 @@ export default function DigitalCard() {
   const [qrImage, setQrImage] = useState(null);
   const [qrUrl, setQrUrl] = useState("");
   const [qrError, setQrError] = useState("");
+  const [viewedCardId, setViewedCardId] = useState(null);
+  const [lastShareId, setLastShareId] = useState(null);
+  const [stats, setStats] = useState(null);
+  const [statsBusy, setStatsBusy] = useState(false);
   const cardRef = useRef(null);
   const fileInputRef = useRef(null);
   const [tilt, setTilt] = useState({ x: 0, y: 0 });
+
+  // The card's chosen color theme lives in data.theme so it travels with
+  // the card when shared — the recipient sees the same look the owner
+  // picked, not just whatever theme is default.
+  const activeTheme = THEMES[data.theme] || THEMES.gold;
+  const { BG, CARD_TOP, CARD_BOTTOM, GOLD, ICE, CREAM, MUTED, PANEL, LINE, CORAL_ERR } = activeTheme;
 
   useEffect(() => {
     // If the URL carries a shared card's id (from someone's QR/link), fetch
@@ -227,6 +318,8 @@ export default function DigitalCard() {
             if (decoded && typeof decoded === "object" && !Array.isArray(decoded)) {
               setData(decoded);
               setSharedView(true);
+              setViewedCardId(sharedId);
+              logCardEvent(sharedId, "view");
             }
           }
         } catch (e) {
@@ -266,6 +359,15 @@ export default function DigitalCard() {
       // Storage full or blocked — fail silently, don't crash the page.
     }
   }, [data, loaded, sharedView]);
+
+  useEffect(() => {
+    try {
+      const saved = localStorage.getItem("card-last-share-id");
+      if (saved) setLastShareId(saved);
+    } catch (e) {
+      // No saved share yet, or storage blocked — stats section just won't show.
+    }
+  }, []);
 
   function set(key, value) {
     // The photo is a long base64 data URL — never truncate it. Only cap
@@ -362,6 +464,12 @@ export default function DigitalCard() {
       // link/QR itself.
       const docRef = await addDoc(collection(db, "cards"), data);
       const url = `${window.location.origin}${window.location.pathname}?id=${docRef.id}`;
+      setLastShareId(docRef.id);
+      try {
+        localStorage.setItem("card-last-share-id", docRef.id);
+      } catch (e) {
+        // Non-critical — stats just won't be recoverable after a reload.
+      }
 
       await loadQrLib();
       const holder = window.__qrEncode(url, 220);
@@ -396,6 +504,22 @@ export default function DigitalCard() {
     a.href = qrImage;
     a.download = `${(data.name || "my-card").replace(/\s+/g, "_")}-qr.png`;
     a.click();
+  }
+
+  async function viewStats() {
+    if (!lastShareId) return;
+    setStatsBusy(true);
+    try {
+      const [views, clicks] = await Promise.all([
+        countCardEvents(lastShareId, "view"),
+        countCardEvents(lastShareId, "click"),
+      ]);
+      setStats({ views, clicks });
+    } catch (e) {
+      setStats({ error: true });
+    } finally {
+      setStatsBusy(false);
+    }
   }
 
   const socials = useMemo(() => {
@@ -743,6 +867,59 @@ export default function DigitalCard() {
           <div style={{ display: "grid", gap: 12 }}>
             <div>
               <div style={{ fontSize: 11.5, color: MUTED, fontWeight: 600, marginBottom: 8, letterSpacing: "0.03em" }}>
+                CARD THEME
+              </div>
+              <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
+                {THEME_ORDER.map((id) => {
+                  const t = THEMES[id];
+                  const active = (data.theme || "gold") === id;
+                  return (
+                    <div
+                      key={id}
+                      onClick={() => set("theme", id)}
+                      title={t.label}
+                      style={{
+                        display: "flex",
+                        flexDirection: "column",
+                        alignItems: "center",
+                        gap: 6,
+                        cursor: "pointer",
+                      }}
+                    >
+                      <div
+                        style={{
+                          width: 42,
+                          height: 42,
+                          borderRadius: "50%",
+                          background: `linear-gradient(135deg, ${t.CARD_TOP}, ${t.CARD_BOTTOM})`,
+                          border: active ? `2.5px solid ${t.GOLD}` : `2px solid ${LINE}`,
+                          boxShadow: active ? `0 0 0 3px rgba(212,175,106,0.15)` : "none",
+                          position: "relative",
+                          transition: "transform 0.15s ease",
+                          transform: active ? "scale(1.05)" : "scale(1)",
+                        }}
+                      >
+                        <div
+                          style={{
+                            position: "absolute",
+                            top: 9,
+                            left: 9,
+                            width: 10,
+                            height: 10,
+                            borderRadius: "50%",
+                            background: t.GOLD,
+                          }}
+                        />
+                      </div>
+                      <span style={{ fontSize: 10, color: active ? CREAM : MUTED }}>{t.label.split(" ")[0]}</span>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+
+            <div>
+              <div style={{ fontSize: 11.5, color: MUTED, fontWeight: 600, marginBottom: 8, letterSpacing: "0.03em" }}>
                 PROFILE PHOTO
               </div>
               <div
@@ -900,6 +1077,9 @@ export default function DigitalCard() {
                           rel="noopener noreferrer"
                           className="dc-social"
                           title={s.key}
+                          onClick={() => {
+                            if (sharedView && viewedCardId) logCardEvent(viewedCardId, "click", s.key);
+                          }}
                         >
                           <Icon size={16} color={s.color} />
                         </a>
@@ -955,6 +1135,52 @@ export default function DigitalCard() {
           {!sharedView && (
             <div style={{ textAlign: "center", color: MUTED, fontSize: 11.5, marginTop: 14 }}>
               "Share as QR" saves your card and gives you a short, scannable link — photo included.
+            </div>
+          )}
+
+          {!sharedView && lastShareId && (
+            <div
+              style={{
+                marginTop: 16,
+                padding: "14px 16px",
+                borderRadius: 12,
+                border: `1px solid ${LINE}`,
+                background: PANEL,
+              }}
+            >
+              {!stats ? (
+                <div
+                  onClick={statsBusy ? undefined : viewStats}
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    gap: 8,
+                    fontSize: 13,
+                    color: GOLD,
+                    fontWeight: 600,
+                    cursor: statsBusy ? "default" : "pointer",
+                  }}
+                >
+                  {statsBusy ? <Sparkles size={14} className="dc-spin" /> : <QrCode size={14} />}
+                  {statsBusy ? "Checking…" : "View stats for your last shared card"}
+                </div>
+              ) : stats.error ? (
+                <div style={{ textAlign: "center", fontSize: 12.5, color: MUTED }}>
+                  Couldn't load stats — check your connection.
+                </div>
+              ) : (
+                <div style={{ display: "flex", justifyContent: "center", gap: 28 }}>
+                  <div style={{ textAlign: "center" }}>
+                    <div style={{ fontSize: 20, fontWeight: 700, color: CREAM }}>{stats.views}</div>
+                    <div style={{ fontSize: 11, color: MUTED }}>views</div>
+                  </div>
+                  <div style={{ textAlign: "center" }}>
+                    <div style={{ fontSize: 20, fontWeight: 700, color: CREAM }}>{stats.clicks}</div>
+                    <div style={{ fontSize: 11, color: MUTED }}>link clicks</div>
+                  </div>
+                </div>
+              )}
             </div>
           )}
 
