@@ -910,7 +910,7 @@ export default function DigitalCard() {
           position: absolute;
           inset: -50%;
           background: linear-gradient(115deg, transparent 42%, rgba(212,175,106,0.10) 49%, rgba(243,241,234,0.12) 50%, rgba(212,175,106,0.10) 51%, transparent 58%);
-          animation: dc-sweep 9s ease-in-out infinite;
+          animation: dc-sweep 9s ease-in-out 2;
           pointer-events: none;
         }
         @keyframes dc-sweep {
@@ -960,7 +960,7 @@ export default function DigitalCard() {
           inset: -5px;
           border-radius: 50%;
           border: 1.5px solid rgba(212,175,106,0.4);
-          animation: dc-ring 2.4s ease-in-out infinite;
+          animation: dc-ring 2.4s ease-in-out 3;
           pointer-events: none;
         }
         @keyframes dc-ring {
