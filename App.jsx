@@ -24,6 +24,14 @@ import {
   Camera,
   QrCode,
   X,
+  Heart,
+  TrendingUp,
+  BookOpen,
+  Code2,
+  Palette,
+  Scale,
+  Dumbbell,
+  UtensilsCrossed,
 } from "lucide-react";
 
 // ⚠️ PASTE YOUR FIREBASE CONFIG HERE — replace every "REPLACE_ME" below
@@ -97,6 +105,35 @@ const THEMES = {
   },
 };
 const THEME_ORDER = ["gold", "sapphire", "rose", "emerald"];
+
+const BG_ANIMS = [
+  { id: "blobs", label: "Blobs" },
+  { id: "stars", label: "Stars" },
+  { id: "aurora", label: "Aurora" },
+  { id: "grid", label: "Grid" },
+  { id: "bokeh", label: "Bokeh" },
+  { id: "confetti", label: "Confetti" },
+  { id: "none", label: "None" },
+  { id: "medical", label: "Medical", group: "profession" },
+  { id: "business", label: "Business", group: "profession" },
+  { id: "education", label: "Education", group: "profession" },
+  { id: "tech", label: "Tech", group: "profession" },
+  { id: "creative", label: "Creative", group: "profession" },
+  { id: "legal", label: "Legal", group: "profession" },
+  { id: "fitness", label: "Fitness", group: "profession" },
+  { id: "food", label: "Culinary", group: "profession" },
+];
+
+const PROFESSION_ICONS = {
+  medical: Heart,
+  business: TrendingUp,
+  education: BookOpen,
+  tech: Code2,
+  creative: Palette,
+  legal: Scale,
+  fitness: Dumbbell,
+  food: UtensilsCrossed,
+};
 
 const displayFont = "Georgia, 'Iowan Old Style', 'Times New Roman', serif";
 const uiFont = "ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif";
@@ -275,6 +312,138 @@ const FIELDS = [
   { key: "linkedin", label: "LinkedIn (optional)", placeholder: "linkedin.com/in/you" },
   { key: "website", label: "Website (optional)", placeholder: "yoursite.com" },
 ];
+
+// Renders one of several animated background styles behind the card.
+// Positions/delays are derived from a fixed index rather than Math.random()
+// so the layout doesn't jump around on every re-render.
+function renderBackground(style, { GOLD, ICE }) {
+  const s = style || "blobs";
+
+  if (s === "none") return null;
+
+  if (s === "stars") {
+    const stars = Array.from({ length: 26 });
+    return (
+      <>
+        {stars.map((_, i) => {
+          const left = (i * 37) % 100;
+          const top = (i * 53) % 100;
+          const size = 2 + (i % 4);
+          return (
+            <div
+              key={i}
+              className="dc-star"
+              style={{
+                left: `${left}%`,
+                top: `${top}%`,
+                width: size,
+                height: size,
+                animationDelay: `${(i % 10) * 0.25}s`,
+              }}
+            />
+          );
+        })}
+      </>
+    );
+  }
+
+  if (s === "aurora") {
+    return <div className="dc-aurora" />;
+  }
+
+  if (s === "grid") {
+    return <div className="dc-grid" />;
+  }
+
+  if (s === "bokeh") {
+    const circles = Array.from({ length: 10 });
+    return (
+      <>
+        {circles.map((_, i) => {
+          const left = (i * 31) % 100;
+          const size = 18 + ((i * 13) % 40);
+          const duration = 10 + (i % 6) * 2;
+          return (
+            <div
+              key={i}
+              className="dc-bokeh"
+              style={{
+                left: `${left}%`,
+                width: size,
+                height: size,
+                background: i % 2 === 0 ? GOLD : ICE,
+                animationDuration: `${duration}s`,
+                animationDelay: `${(i % 5) * 1.4}s`,
+              }}
+            />
+          );
+        })}
+      </>
+    );
+  }
+
+  if (s === "confetti") {
+    const bits = Array.from({ length: 18 });
+    const shapes = ["✦", "✧", "•", "◆"];
+    return (
+      <>
+        {bits.map((_, i) => {
+          const left = (i * 43) % 100;
+          const duration = 9 + (i % 5) * 1.6;
+          return (
+            <div
+              key={i}
+              className="dc-confetti-bit"
+              style={{
+                left: `${left}%`,
+                color: i % 2 === 0 ? GOLD : ICE,
+                animationDuration: `${duration}s`,
+                animationDelay: `${(i % 6) * 1.1}s`,
+              }}
+            >
+              {shapes[i % shapes.length]}
+            </div>
+          );
+        })}
+      </>
+    );
+  }
+
+  if (PROFESSION_ICONS[s]) {
+    const Icon = PROFESSION_ICONS[s];
+    const icons = Array.from({ length: 9 });
+    return (
+      <>
+        {icons.map((_, i) => {
+          const left = (i * 29) % 100;
+          const duration = 8 + (i % 5) * 1.5;
+          const size = 16 + (i % 3) * 6;
+          return (
+            <div
+              key={i}
+              className="dc-prof-icon"
+              style={{
+                left: `${left}%`,
+                animationDuration: `${duration}s`,
+                animationDelay: `${(i % 6) * 1.2}s`,
+              }}
+            >
+              <Icon size={size} color={i % 2 === 0 ? GOLD : ICE} strokeWidth={1.75} />
+            </div>
+          );
+        })}
+      </>
+    );
+  }
+
+  // Default: floating blobs
+  return (
+    <>
+      <div className="dc-blob" style={{ width: 320, height: 320, background: GOLD, top: -80, left: -100 }} />
+      <div className="dc-blob" style={{ width: 260, height: 260, background: ICE, bottom: -60, right: -60, animationDelay: "3s" }} />
+    </>
+  );
+}
 
 export default function DigitalCard() {
   const [data, setData] = useState({});
@@ -639,6 +808,75 @@ export default function DigitalCard() {
           0%, 100% { transform: translate(0, 0) scale(1); }
           50% { transform: translate(30px, -20px) scale(1.08); }
         }
+        .dc-star {
+          position: absolute;
+          border-radius: 50%;
+          background: ${GOLD};
+          animation: dc-twinkle 2.6s ease-in-out infinite;
+        }
+        @keyframes dc-twinkle {
+          0%, 100% { opacity: 0.15; transform: scale(0.8); }
+          50% { opacity: 0.9; transform: scale(1.3); }
+        }
+        .dc-aurora {
+          position: absolute;
+          inset: -20%;
+          background: linear-gradient(120deg, ${GOLD}22, ${ICE}22, transparent, ${GOLD}18);
+          background-size: 300% 300%;
+          animation: dc-aurora-move 16s ease-in-out infinite;
+          filter: blur(40px);
+        }
+        @keyframes dc-aurora-move {
+          0%, 100% { background-position: 0% 50%; }
+          50% { background-position: 100% 50%; }
+        }
+        .dc-grid {
+          position: absolute;
+          inset: 0;
+          background-image: radial-gradient(${GOLD}33 1.4px, transparent 1.4px);
+          background-size: 26px 26px;
+          animation: dc-grid-pulse 4s ease-in-out infinite;
+        }
+        @keyframes dc-grid-pulse {
+          0%, 100% { opacity: 0.35; }
+          50% { opacity: 0.75; }
+        }
+        .dc-bokeh {
+          position: absolute;
+          border-radius: 50%;
+          opacity: 0.25;
+          filter: blur(1px);
+          animation: dc-bokeh-rise linear infinite;
+        }
+        @keyframes dc-bokeh-rise {
+          0% { transform: translateY(110vh) scale(0.6); opacity: 0; }
+          15% { opacity: 0.3; }
+          85% { opacity: 0.25; }
+          100% { transform: translateY(-10vh) scale(1.1); opacity: 0; }
+        }
+        .dc-confetti-bit {
+          position: absolute;
+          font-size: 13px;
+          opacity: 0.5;
+          animation: dc-confetti-drift linear infinite;
+        }
+        @keyframes dc-confetti-drift {
+          0% { transform: translateY(-10vh) rotate(0deg); opacity: 0; }
+          10% { opacity: 0.6; }
+          90% { opacity: 0.5; }
+          100% { transform: translateY(110vh) rotate(220deg); opacity: 0; }
+        }
+        .dc-prof-icon {
+          position: absolute;
+          opacity: 0.35;
+          animation: dc-prof-rise linear infinite;
+        }
+        @keyframes dc-prof-rise {
+          0% { transform: translateY(110vh) scale(0.7) rotate(0deg); opacity: 0; }
+          15% { opacity: 0.4; }
+          85% { opacity: 0.32; }
+          100% { transform: translateY(-10vh) scale(1.1) rotate(15deg); opacity: 0; }
+        }
         .dc-input {
           width: 100%;
           padding: 11px 13px;
@@ -807,12 +1045,12 @@ export default function DigitalCard() {
           to { opacity: 1; transform: scale(1) translateY(0); }
         }
         @media (prefers-reduced-motion: reduce) {
-          .dc-shine, .dc-blob, .dc-avatar::after, .dc-card-wrap { animation: none; }
+          .dc-shine, .dc-blob, .dc-avatar::after, .dc-card-wrap,
+          .dc-star, .dc-aurora, .dc-grid, .dc-bokeh, .dc-confetti-bit, .dc-prof-icon { animation: none; }
         }
       `}</style>
 
-      <div className="dc-blob" style={{ width: 320, height: 320, background: GOLD, top: -80, left: -100 }} />
-      <div className="dc-blob" style={{ width: 260, height: 260, background: ICE, bottom: -60, right: -60, animationDelay: "3s" }} />
+      {renderBackground(data.bgAnim, { GOLD, ICE })}
 
       <div
         style={{
@@ -913,6 +1151,65 @@ export default function DigitalCard() {
                       </div>
                       <span style={{ fontSize: 10, color: active ? CREAM : MUTED }}>{t.label.split(" ")[0]}</span>
                     </div>
+                  );
+                })}
+              </div>
+            </div>
+
+            <div>
+              <div style={{ fontSize: 11.5, color: MUTED, fontWeight: 600, marginBottom: 8, letterSpacing: "0.03em" }}>
+                BACKGROUND ANIMATION
+              </div>
+              <div style={{ fontSize: 10.5, color: MUTED, marginBottom: 6 }}>General</div>
+              <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 14 }}>
+                {BG_ANIMS.filter((b) => !b.group).map((b) => {
+                  const active = (data.bgAnim || "blobs") === b.id;
+                  return (
+                    <span
+                      key={b.id}
+                      onClick={() => set("bgAnim", b.id)}
+                      style={{
+                        padding: "7px 12px",
+                        borderRadius: 999,
+                        border: active ? `1.5px solid ${GOLD}` : `1.5px solid ${LINE}`,
+                        background: active ? "rgba(212,175,106,0.12)" : PANEL,
+                        color: active ? GOLD : MUTED,
+                        fontSize: 12.5,
+                        fontWeight: 600,
+                        cursor: "pointer",
+                      }}
+                    >
+                      {b.label}
+                    </span>
+                  );
+                })}
+              </div>
+              <div style={{ fontSize: 10.5, color: MUTED, marginBottom: 6 }}>By profession</div>
+              <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+                {BG_ANIMS.filter((b) => b.group === "profession").map((b) => {
+                  const active = (data.bgAnim || "blobs") === b.id;
+                  const Icon = PROFESSION_ICONS[b.id];
+                  return (
+                    <span
+                      key={b.id}
+                      onClick={() => set("bgAnim", b.id)}
+                      style={{
+                        display: "inline-flex",
+                        alignItems: "center",
+                        gap: 6,
+                        padding: "7px 12px",
+                        borderRadius: 999,
+                        border: active ? `1.5px solid ${GOLD}` : `1.5px solid ${LINE}`,
+                        background: active ? "rgba(212,175,106,0.12)" : PANEL,
+                        color: active ? GOLD : MUTED,
+                        fontSize: 12.5,
+                        fontWeight: 600,
+                        cursor: "pointer",
+                      }}
+                    >
+                      {Icon && <Icon size={13} />}
+                      {b.label}
+                    </span>
                   );
                 })}
               </div>
