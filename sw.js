@@ -1,10 +1,11 @@
-const CACHE_NAME = "digital-card-v1";
-const SHELL_URLS = ["/", "/index.html", "/icon-192.png", "/icon-512.png"];
+// v2 — always network-first, for everything, including the HTML shell.
+// The old v1 worker cached "/" and "/index.html" cache-first, which meant
+// browsers kept showing a stale copy of the site forever, even after new
+// code was deployed. This version only ever falls back to cache when
+// there's genuinely no network — so updates always show up immediately.
+const CACHE_NAME = "digital-card-v2";
 
-self.addEventListener("install", (event) => {
-  event.waitUntil(
-    caches.open(CACHE_NAME).then((cache) => cache.addAll(SHELL_URLS)).catch(() => {})
-  );
+self.addEventListener("install", () => {
   self.skipWaiting();
 });
 
@@ -17,25 +18,10 @@ self.addEventListener("activate", (event) => {
   self.clients.claim();
 });
 
-// Network-first for navigation/data, cache-first for the static shell —
-// keeps the card fresh (so shared links always show current data) while
-// still letting the app open offline after a first visit.
 self.addEventListener("fetch", (event) => {
   const { request } = event;
   if (request.method !== "GET") return;
 
-  const url = new URL(request.url);
-  const isShellAsset = SHELL_URLS.some((u) => url.pathname === u);
-
-  if (isShellAsset) {
-    event.respondWith(
-      caches.match(request).then((cached) => cached || fetch(request))
-    );
-    return;
-  }
-
-  // Everything else (JS bundles, Firestore calls, share links with query
-  // params) — try the network first, fall back to cache if offline.
   event.respondWith(
     fetch(request)
       .then((res) => {
