@@ -1,34 +1,24 @@
-// v2 — always network-first, for everything, including the HTML shell.
-// The old v1 worker cached "/" and "/index.html" cache-first, which meant
-// browsers kept showing a stale copy of the site forever, even after new
-// code was deployed. This version only ever falls back to cache when
-// there's genuinely no network — so updates always show up immediately.
-const CACHE_NAME = "digital-card-v2";
-
+// This service worker exists ONLY to clean up and remove the old, buggy
+// workers that were stuck caching a stale copy of the site. The first
+// time it runs in a visitor's browser, it deletes all caches, unregisters
+// itself, and reloads that one tab. On every visit after that (once
+// there's nothing left to clean), it just quietly unregisters without
+// reloading — so this can't turn into a reload loop.
 self.addEventListener("install", () => {
   self.skipWaiting();
 });
 
 self.addEventListener("activate", (event) => {
   event.waitUntil(
-    caches.keys().then((names) =>
-      Promise.all(names.filter((n) => n !== CACHE_NAME).map((n) => caches.delete(n)))
-    )
-  );
-  self.clients.claim();
-});
-
-self.addEventListener("fetch", (event) => {
-  const { request } = event;
-  if (request.method !== "GET") return;
-
-  event.respondWith(
-    fetch(request)
-      .then((res) => {
-        const clone = res.clone();
-        caches.open(CACHE_NAME).then((cache) => cache.put(request, clone)).catch(() => {});
-        return res;
-      })
-      .catch(() => caches.match(request))
+    (async () => {
+      const names = await caches.keys();
+      const hadStaleCache = names.length > 0;
+      await Promise.all(names.map((n) => caches.delete(n)));
+      await self.registration.unregister();
+      if (hadStaleCache) {
+        const clientsList = await self.clients.matchAll({ type: "window" });
+        clientsList.forEach((client) => client.navigate(client.url));
+      }
+    })()
   );
 });
