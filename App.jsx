@@ -801,12 +801,7 @@ export default function DigitalCard() {
           position: absolute;
           border-radius: 50%;
           filter: blur(70px);
-          opacity: 0.35;
-          animation: dc-float 14s ease-in-out infinite;
-        }
-        @keyframes dc-float {
-          0%, 100% { transform: translate(0, 0) scale(1); }
-          50% { transform: translate(30px, -20px) scale(1.08); }
+          opacity: 0.3;
         }
         .dc-star {
           position: absolute;
@@ -965,14 +960,6 @@ export default function DigitalCard() {
         @keyframes dc-pop {
           0% { opacity: 0; transform: scale(0.5) rotate(-8deg); }
           100% { opacity: 1; transform: scale(1) rotate(0deg); }
-        }
-        .dc-card-wrap {
-          perspective: 1000px;
-          animation: dc-sway 7s ease-in-out infinite;
-        }
-        @keyframes dc-sway {
-          0%, 100% { transform: rotate(0deg) translateY(0); }
-          50% { transform: rotate(0.6deg) translateY(-4px); }
         }
         .dc-confetti {
           position: absolute;
