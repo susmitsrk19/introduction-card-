@@ -1085,58 +1085,6 @@ export default function DigitalCard() {
           }}
         >
           <div style={{ display: "grid", gap: 12 }}>
-            <div>
-              <div style={{ fontSize: 11.5, color: MUTED, fontWeight: 600, marginBottom: 8, letterSpacing: "0.03em" }}>
-                CARD THEME
-              </div>
-              <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
-                {THEME_ORDER.map((id) => {
-                  const t = THEMES[id];
-                  const active = (data.theme || "gold") === id;
-                  return (
-                    <div
-                      key={id}
-                      onClick={() => set("theme", id)}
-                      title={t.label}
-                      style={{
-                        display: "flex",
-                        flexDirection: "column",
-                        alignItems: "center",
-                        gap: 6,
-                        cursor: "pointer",
-                      }}
-                    >
-                      <div
-                        style={{
-                          width: 42,
-                          height: 42,
-                          borderRadius: "50%",
-                          background: `linear-gradient(135deg, ${t.CARD_TOP}, ${t.CARD_BOTTOM})`,
-                          border: active ? `2.5px solid ${t.GOLD}` : `2px solid ${LINE}`,
-                          boxShadow: active ? `0 0 0 3px rgba(212,175,106,0.15)` : "none",
-                          position: "relative",
-                          transition: "transform 0.15s ease",
-                          transform: active ? "scale(1.05)" : "scale(1)",
-                        }}
-                      >
-                        <div
-                          style={{
-                            position: "absolute",
-                            top: 9,
-                            left: 9,
-                            width: 10,
-                            height: 10,
-                            borderRadius: "50%",
-                            background: t.GOLD,
-                          }}
-                        />
-                      </div>
-                      <span style={{ fontSize: 10, color: active ? CREAM : MUTED }}>{t.label.split(" ")[0]}</span>
-                    </div>
-                  );
-                })}
-              </div>
-            </div>
 
             <div>
               <div style={{ fontSize: 11.5, color: MUTED, fontWeight: 600, marginBottom: 8, letterSpacing: "0.03em" }}>
