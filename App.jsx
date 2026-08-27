@@ -411,13 +411,13 @@ function renderBackground(style, { GOLD, ICE }) {
 
   if (PROFESSION_ICONS[s]) {
     const Icon = PROFESSION_ICONS[s];
-    const icons = Array.from({ length: 9 });
+    const icons = Array.from({ length: 5 });
     return (
       <>
         {icons.map((_, i) => {
-          const left = (i * 29) % 100;
-          const duration = 8 + (i % 5) * 1.5;
-          const size = 16 + (i % 3) * 6;
+          const left = 8 + (i * 21) % 90;
+          const duration = 11 + (i % 3) * 2;
+          const size = 16 + (i % 3) * 4;
           return (
             <div
               key={i}
@@ -425,10 +425,10 @@ function renderBackground(style, { GOLD, ICE }) {
               style={{
                 left: `${left}%`,
                 animationDuration: `${duration}s`,
-                animationDelay: `${(i % 6) * 1.2}s`,
+                animationDelay: `${(i % 5) * 2}s`,
               }}
             >
-              <Icon size={size} color={i % 2 === 0 ? GOLD : ICE} strokeWidth={1.75} />
+              <Icon size={size} color={i % 2 === 0 ? GOLD : ICE} strokeWidth={1.5} />
             </div>
           );
         })}
@@ -863,7 +863,7 @@ export default function DigitalCard() {
         }
         .dc-prof-icon {
           position: absolute;
-          opacity: 0.35;
+          opacity: 0.22;
           animation: dc-prof-rise linear infinite;
         }
         @keyframes dc-prof-rise {
