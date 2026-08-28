@@ -356,13 +356,14 @@ function renderBackground(style, { GOLD, ICE }) {
   }
 
   if (s === "bokeh") {
-    const circles = Array.from({ length: 10 });
+    const circles = Array.from({ length: 8 });
     return (
       <>
         {circles.map((_, i) => {
-          const left = (i * 31) % 100;
-          const size = 18 + ((i * 13) % 40);
-          const duration = 10 + (i % 6) * 2;
+          const zone = i % 2;
+          const left = zone === 0 ? (i * 5) % 14 : 86 + (i * 5) % 14;
+          const size = 14 + ((i * 11) % 26);
+          const duration = 12 + (i % 6) * 2;
           return (
             <div
               key={i}
@@ -373,7 +374,7 @@ function renderBackground(style, { GOLD, ICE }) {
                 height: size,
                 background: i % 2 === 0 ? GOLD : ICE,
                 animationDuration: `${duration}s`,
-                animationDelay: `${(i % 5) * 1.4}s`,
+                animationDelay: `${(i % 5) * 1.8}s`,
               }}
             />
           );
@@ -383,13 +384,14 @@ function renderBackground(style, { GOLD, ICE }) {
   }
 
   if (s === "confetti") {
-    const bits = Array.from({ length: 18 });
+    const bits = Array.from({ length: 10 });
     const shapes = ["✦", "✧", "•", "◆"];
     return (
       <>
         {bits.map((_, i) => {
-          const left = (i * 43) % 100;
-          const duration = 9 + (i % 5) * 1.6;
+          const zone = i % 2;
+          const left = zone === 0 ? (i * 4) % 15 : 85 + (i * 4) % 15;
+          const duration = 11 + (i % 5) * 1.8;
           return (
             <div
               key={i}
@@ -398,7 +400,7 @@ function renderBackground(style, { GOLD, ICE }) {
                 left: `${left}%`,
                 color: i % 2 === 0 ? GOLD : ICE,
                 animationDuration: `${duration}s`,
-                animationDelay: `${(i % 6) * 1.1}s`,
+                animationDelay: `${(i % 6) * 1.6}s`,
               }}
             >
               {shapes[i % shapes.length]}
@@ -411,13 +413,14 @@ function renderBackground(style, { GOLD, ICE }) {
 
   if (PROFESSION_ICONS[s]) {
     const Icon = PROFESSION_ICONS[s];
-    const icons = Array.from({ length: 5 });
+    const icons = Array.from({ length: 4 });
     return (
       <>
         {icons.map((_, i) => {
-          const left = 8 + (i * 21) % 90;
-          const duration = 11 + (i % 3) * 2;
-          const size = 16 + (i % 3) * 4;
+          const zone = i % 2;
+          const left = zone === 0 ? (i * 6) % 12 : 88 + (i * 6) % 12;
+          const duration = 13 + (i % 3) * 2;
+          const size = 15 + (i % 3) * 3;
           return (
             <div
               key={i}
@@ -425,7 +428,7 @@ function renderBackground(style, { GOLD, ICE }) {
               style={{
                 left: `${left}%`,
                 animationDuration: `${duration}s`,
-                animationDelay: `${(i % 5) * 2}s`,
+                animationDelay: `${(i % 4) * 2.5}s`,
               }}
             >
               <Icon size={size} color={i % 2 === 0 ? GOLD : ICE} strokeWidth={1.5} />
@@ -1039,15 +1042,16 @@ export default function DigitalCard() {
           maxWidth: 920,
           margin: "0 auto",
           position: "relative",
+          zIndex: 1,
           display: "grid",
           gridTemplateColumns: "1fr",
           gap: 28,
         }}
-        className="dc-grid"
+        className="dc-layout-grid"
       >
         <style>{`
           @media (min-width: 860px) {
-            .dc-grid { grid-template-columns: 1fr 360px !important; align-items: start; }
+            .dc-layout-grid { grid-template-columns: 1fr 360px !important; align-items: start; }
           }
         `}</style>
 
